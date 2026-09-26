@@ -1,1 +1,0 @@
-local url = "https://4kqtyc5tkv2qk.doubaoapps.com/app/app_17etpfxa402/api/raw/0699e4152dc1ffbc17f14933198c2e10"
