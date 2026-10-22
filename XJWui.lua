@@ -685,7 +685,7 @@ local function makeSlider(parent,y,h,label,accent,defaultPct,cb)
 		BackgroundColor3=ACC,BorderSizePixel=0,Parent=track})
 	corner(fill,2)
 	local dot = new("Frame",{AnchorPoint=Vector2.new(.5,.5),
-		Position=UD.new(pct,6-pct*12,.5,0),
+		Position=UD.new(pct,0,.5,0),
 		Size=UD.fromOffset(12,12),BackgroundColor3=C.Text,BorderSizePixel=0,Parent=track})
 	corner(dot,6); stroke(dot,C.Void,2,0)
 	local hit = new("TextButton",{Size=UD.fromScale(1,1),BackgroundTransparency=1,
@@ -695,7 +695,7 @@ local function makeSlider(parent,y,h,label,accent,defaultPct,cb)
 		local p = math.clamp((input.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
 		pct = p
 		fill.Size = UD.new(p,0,1,0)
-		dot.Position = UD.new(p,6-p*12,.5,0)
+		dot.Position = UD.new(p,0,.5,0)
 		valLbl.Text = math.floor(p*100).."%"
 	end
 	hit.InputBegan:Connect(function(input)
@@ -720,7 +720,7 @@ local function makeSlider(parent,y,h,label,accent,defaultPct,cb)
 		if v > 1 or v < 0 then v = v/100 end
 		pct = math.clamp(v,0,1)
 		fill.Size = UD.new(pct,0,1,0)
-		dot.Position = UD.new(pct,6-pct*12,.5,0)
+		dot.Position = UD.new(pct,0,.5,0)
 		valLbl.Text = math.floor(pct*100+0.5).."%"
 		if cb then pcall(cb,math.floor(pct*100+0.5)) end
 	end
@@ -1912,7 +1912,7 @@ UIKIT.notify = function(o)
 	local top = 12 + (slot - 1) * 34
 	local card = new("Frame",{AnchorPoint=Vector2.new(1,0),Position=UD.new(1,40,0,top),
 		Size=UD.fromOffset(150,30),BackgroundColor3=C.Panel2,BorderSizePixel=0,
-		BackgroundTransparency=0.05,Parent=gui,ZIndex=900,ClipsDescendants=true})
+		BackgroundTransparency=0.05,Parent=gui,ZIndex=900})
 	corner(card,6)
 	stroke(card,ACC,1,1)
 	new("TextLabel",{Position=UD.fromOffset(10,4),Size=UD.new(1,-20,0,12),BackgroundTransparency=1,
@@ -1921,15 +1921,15 @@ UIKIT.notify = function(o)
 	new("TextLabel",{Position=UD.fromOffset(10,16),Size=UD.new(1,-20,0,10),BackgroundTransparency=1,
 		Text=tostring(o.Content or ""),TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=10,
 		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=card,ZIndex=901})
-	new("Frame",{Position=UD.fromOffset(6,27),Size=UD.new(1,-12,0,3),
-		BackgroundColor3=C.Panel,BackgroundTransparency=0.55,BorderSizePixel=0,
-		Parent=card,ZIndex=901})
-	local bar = new("Frame",{Position=UD.fromOffset(6,27),Size=UD.new(1,-12,0,3),BackgroundColor3=ACC,
-		BackgroundTransparency=0,BorderSizePixel=0,Parent=card,ZIndex=902,ClipsDescendants=false})
-	corner(bar,2)
+	new("Frame",{Position=UD.new(0,0,1,-3),Size=UD.new(1,0,0,3),BackgroundColor3=C.Panel,
+		BackgroundTransparency=0.55,BorderSizePixel=0,Parent=card,ZIndex=901})
+	local bar = new("Frame",{Position=UD.new(0,0,1,-3),Size=UD.new(1,0,0,3),BackgroundColor3=ACC,
+		BackgroundTransparency=0,BorderSizePixel=0,Parent=card,ZIndex=902})
+	corner(bar,1.5)
 	tw(card,0.15,{Position=UD.new(1,-12,0,top)})
-	local barTw = tw(bar,dur,{Size=UD.new(0,0,0,3)},Enum.EasingStyle.Linear)
-	barTw.Completed:Connect(function()
+	tw(bar,dur,{Size=UD.new(0,0,0,3)},Enum.EasingStyle.Linear)
+	task.spawn(function()
+		task.wait(dur)
 		noteSlots[slot] = nil
 		card:Destroy()
 	end)
