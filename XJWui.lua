@@ -1,3 +1,6 @@
+local BUILD = function(cfg)
+cfg = cfg or {}
+
 local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -10,7 +13,7 @@ local CAM = workspace.CurrentCamera
 local UD  = UDim2
 
 local C = {
-	Title = "XJW", Version = "v3.2",
+	Title = tostring(cfg.Title or "XJW"), Version = tostring(cfg.Version or "v1.0"),
 	Void=Color3.fromRGB(8,8,10), Bg=Color3.fromRGB(13,13,15),
 	Panel=Color3.fromRGB(19,19,22), Panel2=Color3.fromRGB(30,30,34),
 	Line=Color3.fromRGB(64,64,70),
@@ -115,7 +118,7 @@ end
 local gui = new("ScreenGui",{Name="NeonHubUI",ResetOnSpawn=false,IgnoreGuiInset=true,
 	ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=9999,Parent=PG})
 
-local WIN_W, WIN_H = 560, 334
+local WIN_W, WIN_H = tonumber(cfg.Width) or 560, tonumber(cfg.Height) or 334
 local MAIN_SCALE = 1.2
 
 local mainHomePos = UD.fromOffset(
@@ -368,7 +371,7 @@ local titleLbl = new("TextLabel",{Position=UD.fromOffset(68,3),Size=UD.new(1,-12
 local titleGrad = grad(titleLbl,ACC,C.Purple,0)
 tint(function(c) titleGrad.Color = ColorSequence.new(c,C.Purple) end)
 C.SubLbl = new("TextLabel",{Position=UD.fromOffset(68,17),Size=UD.new(1,-120,0,10),BackgroundTransparency=1,
-	Text="由i制作",TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=9,
+	Text=tostring(cfg.SubTitle or "由i制作"),TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=9,
 	TextXAlignment=Enum.TextXAlignment.Left,Parent=titleBar})
 C.TabNG[C.SubLbl] = true
 new("TextLabel",{Position=UD.fromOffset(136,0),Size=UD.new(1,-200,1,0),BackgroundTransparency=1,
@@ -390,9 +393,7 @@ new("Frame",{Position=UD.new(1,-1,0,0),Size=UD.new(0,1,1,0),
 	BackgroundColor3=C.Line,BackgroundTransparency=0.35,BorderSizePixel=0,Parent=sidebar})
 
 C.TabBlue = Color3.fromRGB(74,132,255)
-local tabs = {}
-local tabBtns = {}
-local tabItems = {}
+local tabState = {names={},btns={},items={}}
 local tabY = 10
 
 local tabScroll = new("ScrollingFrame",{Size=UD.new(1,0,1,-72),BackgroundTransparency=1,
@@ -401,7 +402,15 @@ local tabScroll = new("ScrollingFrame",{Size=UD.new(1,0,1,-72),BackgroundTranspa
 	ElasticBehavior=Enum.ElasticBehavior.WhenScrollable,Parent=sidebar})
 pad(tabScroll,0,0,6,6)
 
-for i, name in ipairs(tabs) do
+local content = new("Frame",{Position=UD.new(0.35,0,0,32),Size=UD.new(0.65,0,1,-56),
+	BackgroundColor3=C.Bg,BackgroundTransparency=1,ClipsDescendants=true,Parent=main})
+local pages = {}
+local currentTab = 0
+local switchTab
+local dropCtl
+local function addTab(name)
+	local i = #tabState.names + 1
+	tabState.names[i] = name
 	local on0 = (i==1)
 	local item = new("Frame",{Position=UD.fromOffset(8,tabY),Size=UD.new(1,-16,0,34),
 		BackgroundColor3=C.Panel,BorderSizePixel=0,Parent=tabScroll})
@@ -422,25 +431,38 @@ for i, name in ipairs(tabs) do
 		Font=Enum.Font.GothamBold,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left,Parent=item})
 	local hit = new("TextButton",{Size=UD.fromScale(1,1),BackgroundTransparency=1,Text="",
 		AutoButtonColor=false,Parent=item})
-	tabBtns[i]=hit
-	tabItems[i]={item=item,hili=hili,bar=bar,lbl=lbl}
-end
-local content = new("Frame",{Position=UD.new(0.35,0,0,32),Size=UD.new(0.65,0,1,-56),
-	BackgroundColor3=C.Bg,BackgroundTransparency=1,ClipsDescendants=true,Parent=main})
-local pages = {}
-for i=1,#tabs do
-	pages[i] = new("ScrollingFrame",{Position=UD.fromOffset(0,0),Size=UD.new(1,0,1,0),BackgroundTransparency=1,
+	tabState.btns[i]=hit
+	tabState.items[i]={item=item,hili=hili,bar=bar,lbl=lbl}
+	local pg = new("ScrollingFrame",{Position=UD.fromOffset(0,0),Size=UD.new(1,0,1,0),BackgroundTransparency=1,
 		BorderSizePixel=0,Visible=(i==1),CanvasSize=UD.new(0,0,0,0),
 		AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollingDirection=Enum.ScrollingDirection.Y,
 		ScrollBarThickness=2,ScrollBarImageColor3=C.Line,ScrollBarImageTransparency=0.25,
 		VerticalScrollBarInset=Enum.ScrollBarInset.ScrollBar,
 		ElasticBehavior=Enum.ElasticBehavior.WhenScrollable,Parent=content})
+	pages[i] = pg
+	pg:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		if dropCtl and dropCtl.open then dropCtl.open() end
+	end)
+	hit.Activated:Connect(function() if switchTab then switchTab(i) end end)
+	hit.MouseEnter:Connect(function()
+		if i~=currentTab then
+			tw(tabState.items[i].hili,0.15,{BackgroundTransparency=0.75})
+			tw(tabState.items[i].lbl,0.15,{TextColor3=C.Text})
+		end
+	end)
+	hit.MouseLeave:Connect(function()
+		if i~=currentTab then
+			tw(tabState.items[i].hili,0.15,{BackgroundTransparency=1})
+			tw(tabState.items[i].lbl,0.15,{TextColor3=C.Dim})
+		end
+	end)
+	if on0 then currentTab = 1 end
+	return i, pg
 end
 
 local ROW_H, ROW_SP = 46, 46
 local SLIDER_H, SLIDER_SP = ROW_H, ROW_SP
 
-local dropCtl
 local headFold, foldCache = {}, {}
 local foldPage
 local function head(parent,text)
@@ -594,7 +616,7 @@ local function cfgAdd(label,get,set)
 	cfgReg[#cfgReg+1] = {k=key,g=get}
 end
 
-local function makeToggle(parent,y,h,label,desc,accent)
+local function makeToggle(parent,y,h,label,desc,accent,cb,default)
 	local row,rStroke,bar = cardShell(parent,y,h)
 	local descLbl = new("TextLabel",{Position=UD.fromOffset(14,26),Size=UD.new(1,-64,0,12),
 		BackgroundTransparency=1,Text=desc,TextColor3=C.Dim,Font=Enum.Font.GothamMedium,
@@ -612,6 +634,7 @@ local function makeToggle(parent,y,h,label,desc,accent)
 	local hit = new("TextButton",{Size=UD.fromScale(1,1),BackgroundTransparency=1,
 		Text="",AutoButtonColor=false,Parent=row})
 	local on = false
+	local priming = true
 	local function setOn(v)
 		v = v and true or false
 		if on == v then return end
@@ -625,7 +648,10 @@ local function makeToggle(parent,y,h,label,desc,accent)
 		tw(bar,0.15,{BackgroundColor3=on and ACC or C.Line})
 		descLbl.TextColor3 = on and ACC or C.Dim
 		tw(row,0.15,{BackgroundColor3=on and C.Panel2 or C.Panel})
+		if cb and not priming then pcall(cb,on) end
 	end
+	if default then setOn(true) end
+	priming = false
 	hit.Activated:Connect(function() setOn(not on) end)
 	cfgAdd(label,function() return on end,setOn)
 	tint(function(c)
@@ -636,9 +662,10 @@ local function makeToggle(parent,y,h,label,desc,accent)
 			descLbl.TextColor3 = c
 		end
 	end)
+	return {Set=setOn, Get=function() return on end}
 end
 
-local function makeSlider(parent,y,h,label,accent,defaultPct)
+local function makeSlider(parent,y,h,label,accent,defaultPct,cb)
 	local row,rStroke,bar = cardShell(parent,y,h)
 	new("TextLabel",{AnchorPoint=Vector2.new(0,.5),Position=UD.new(0,14,.5,0),
 		Size=UD.new(0.3,-14,0,14),BackgroundTransparency=1,
@@ -682,6 +709,7 @@ local function makeSlider(parent,y,h,label,accent,defaultPct)
 	end)
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+			if dragging and cb then pcall(cb,math.floor(pct*100+0.5)) end
 			dragging=false
 		end
 	end)
@@ -692,12 +720,14 @@ local function makeSlider(parent,y,h,label,accent,defaultPct)
 		fill.Size = UD.new(pct,0,1,0)
 		dot.Position = UD.new(pct,0,.5,0)
 		valLbl.Text = math.floor(pct*100+0.5).."%"
+		if cb then pcall(cb,math.floor(pct*100+0.5)) end
 	end
 	cfgAdd(label,function() return math.floor(pct*100+0.5) end,setPct)
 	tint(function(c)
 		fill.BackgroundColor3 = c
 		valLbl.TextColor3 = c
 	end)
+	return {Set=setPct, Get=function() return math.floor(pct*100+0.5) end}
 end
 
 dropCtl = {}
@@ -848,7 +878,7 @@ local function wireDrop(row,arrow,list,catcher,layout)
 	catcher.Activated:Connect(function() close() end)
 end
 
-local function makeSelect(parent,y,h,label,desc,options,selIdx,accent)
+local function makeSelect(parent,y,h,label,desc,options,selIdx,accent,cb)
 	local row,valLbl,arrow = dropHead(parent,y,h,label,desc,accent,100)
 	local list,catcher,layout = buildList(y,h,#options,accent)
 	local rows = {}
@@ -874,6 +904,7 @@ local function makeSelect(parent,y,h,label,desc,options,selIdx,accent)
 			sel = i
 			paint()
 			if dropCtl.open then dropCtl.open() end
+			if cb then pcall(cb,sel,name) end
 		end)
 		rows[i] = r
 	end
@@ -883,9 +914,13 @@ local function makeSelect(parent,y,h,label,desc,options,selIdx,accent)
 		paint()
 	end)
 	wireDrop(row,arrow,list,catcher,layout)
+	return {
+		Set=function(v) sel = math.clamp(math.floor(tonumber(v) or sel),1,#options); paint() end,
+		Get=function() return sel, options[sel] end,
+	}
 end
 
-local function makeMulti(parent,y,h,label,desc,options,preset,accent)
+local function makeMulti(parent,y,h,label,desc,options,preset,accent,cb)
 	local row,valLbl,arrow = dropHead(parent,y,h,label,desc,accent,100)
 	local list,catcher,layout = buildList(y,h,#options,accent)
 	local rows = {}
@@ -909,6 +944,7 @@ local function makeMulti(parent,y,h,label,desc,options,preset,accent)
 		r.btn.Activated:Connect(function()
 			on[i] = not on[i]
 			paint()
+			if cb then pcall(cb,on) end
 		end)
 		rows[i] = r
 	end
@@ -930,7 +966,7 @@ local function makeMulti(parent,y,h,label,desc,options,preset,accent)
 	wireDrop(row,arrow,list,catcher,layout)
 end
 
-local function makeNumber(parent,y,h,label,desc,accent,default,min,max)
+local function makeNumber(parent,y,h,label,desc,accent,default,min,max,cb)
 	local row,rStroke,bar = cardShell(parent,y,h)
 	new("TextLabel",{Position=UD.fromOffset(12,6),Size=UD.new(1,-170,0,14),BackgroundTransparency=1,
 		Text=label,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,
@@ -947,6 +983,7 @@ local function makeNumber(parent,y,h,label,desc,accent,default,min,max)
 	local function commit(v)
 		val = math.clamp(math.floor((tonumber(v) or val)+0.5),min,max)
 		box.Text = tostring(val)
+		if cb then pcall(cb,val) end
 	end
 	local function stepBtn(x,txt)
 		local b = new("TextButton",{AnchorPoint=Vector2.new(1,.5),Position=UD.new(1,x,.5,0),
@@ -983,12 +1020,13 @@ local function makeNumber(parent,y,h,label,desc,accent,default,min,max)
 	minus.Activated:Connect(function() commit(val-1) end)
 	plus.Activated:Connect(function() commit(val+1) end)
 	cfgAdd(label,function() return val end,function(v) commit(v) end)
+	return {Set=commit, Get=function() return val end}
 end
 
 local setOpen
 local setPanel
 
-local function makeInput(parent,y,h,label,desc,default,placeholder)
+local function makeInput(parent,y,h,label,desc,default,placeholder,cb)
 	local row,rStroke,bar = cardShell(parent,y,h)
 	new("TextLabel",{Position=UD.fromOffset(12,6),Size=UD.new(1,-270,0,14),BackgroundTransparency=1,
 		Text=label,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,
@@ -1010,47 +1048,27 @@ local function makeInput(parent,y,h,label,desc,default,placeholder)
 	box.FocusLost:Connect(function()
 		box.TextColor3 = C.Text
 		tw(box,0.15,{BackgroundTransparency=0})
+		if cb then pcall(cb,box.Text) end
 	end)
 	cfgAdd(label,function() return box.Text end,function(v) box.Text = tostring(v or "") end)
 	return box
 end
 
 
-for i=1,#tabs do
-	pages[i]:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-		if dropCtl.open then dropCtl.open() end
-	end)
-end
-local currentTab = 1
-local function switchTab(idx)
+switchTab = function(idx)
 	if idx==currentTab then return end
 	if dropCtl.open then dropCtl.open() end
 	for i,pg in ipairs(pages) do
 		pg.Position = UD.fromOffset(0,0)
 		pg.Visible = (i==idx)
 	end
-	for i,t in ipairs(tabItems) do
+	for i,t in ipairs(tabState.items) do
 		local sel = (i==idx)
 		t.hili.BackgroundTransparency = sel and 0.55 or 1
 		tw(t.lbl,0.18,{TextColor3=sel and C.Text or C.Dim})
 		t.bar.BackgroundTransparency = sel and 0 or 1
 	end
 	currentTab = idx
-end
-for i,b in ipairs(tabBtns) do
-	b.Activated:Connect(function() switchTab(i) end)
-	b.MouseEnter:Connect(function()
-		if i~=currentTab then
-			tw(tabItems[i].hili,0.15,{BackgroundTransparency=0.75})
-			tw(tabItems[i].lbl,0.15,{TextColor3=C.Text})
-		end
-	end)
-	b.MouseLeave:Connect(function()
-		if i~=currentTab then
-			tw(tabItems[i].hili,0.15,{BackgroundTransparency=1})
-			tw(tabItems[i].lbl,0.15,{TextColor3=C.Dim})
-		end
-	end)
 end
 local statusBar = new("Frame",{Position=UD.new(0,0,1,-24),Size=UD.new(1,0,0,24),
 	BackgroundColor3=C.Panel2,BorderSizePixel=0,Parent=main})
@@ -1876,4 +1894,98 @@ task.spawn(function()
 	end
 end)
 
-print("[NEON HUB] UI 已加载 · 参考图配色版")
+local UIKIT = {}
+UIKIT.section = function(parent,y,text)
+	new("TextLabel",{Position=UD.fromOffset(4,y+2),Size=UD.new(1,-36,0,16),BackgroundTransparency=1,
+		Text=text,TextColor3=C.TabBlue,Font=Enum.Font.GothamBold,TextSize=15,
+		TextXAlignment=Enum.TextXAlignment.Left,Parent=parent})
+end
+
+UIKIT.paragraph = function(parent,y,h,title,desc)
+	local row = cardShell(parent,y,h)
+	new("TextLabel",{Position=UD.fromOffset(12,6),Size=UD.new(1,-24,0,14),BackgroundTransparency=1,
+		Text=title,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,
+		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=row})
+	new("TextLabel",{Position=UD.fromOffset(12,22),Size=UD.new(1,-24,0,12),BackgroundTransparency=1,
+		Text=desc,TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=11,
+		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=row})
+end
+
+UIKIT.notify = function(o)
+	o = o or {}
+	local card = new("Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UD.new(.5,0,.38,18),
+		Size=UD.fromOffset(280,46),BackgroundColor3=C.Panel2,BorderSizePixel=0,
+		BackgroundTransparency=1,Parent=main,ZIndex=90})
+	corner(card,8)
+	local st = stroke(card,ACC,1,1)
+	local bar = new("Frame",{Size=UD.fromOffset(3,46),BackgroundColor3=ACC,BorderSizePixel=0,
+		BackgroundTransparency=1,Parent=card})
+	corner(bar,1.5)
+	pick(bar,"BackgroundColor3")
+	pick(st,"Color")
+	new("TextLabel",{Position=UD.fromOffset(14,7),Size=UD.new(1,-28,0,14),BackgroundTransparency=1,
+		Text=tostring(o.Title or "提示"),TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=13,
+		TextXAlignment=Enum.TextXAlignment.Left,Parent=card})
+	new("TextLabel",{Position=UD.fromOffset(14,24),Size=UD.new(1,-28,0,12),BackgroundTransparency=1,
+		Text=tostring(o.Content or ""),TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=11,
+		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=card})
+	task.spawn(function()
+		tw(card,0.2,{BackgroundTransparency=0.05,Position=UD.new(.5,0,.38,0)})
+		tw(st,0.2,{Transparency=0.15})
+		tw(bar,0.2,{BackgroundTransparency=0})
+		task.wait(tonumber(o.Duration) or 3)
+		tw(card,0.25,{BackgroundTransparency=1,Position=UD.new(.5,0,.38,-16)})
+		tw(st,0.25,{Transparency=1})
+		tw(bar,0.25,{BackgroundTransparency=1})
+		task.wait(0.3)
+		card:Destroy()
+	end)
+end
+
+local windowObj = {}
+function windowObj:Tab(o)
+	o = o or {}
+	local idx, pg = addTab(tostring(o.Title or "标签"))
+	local tab = {Page=pg, Index=idx}
+	function tab:Section(p)
+		local y = nextY(pg,32)
+		UIKIT.section(pg,y,tostring(type(p)=="table" and p.Title or p or ""))
+	end
+	function tab:Paragraph(p)
+		UIKIT.paragraph(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""))
+	end
+	function tab:Button(p)
+		return makeAction(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""),ACC,p.Callback)
+	end
+	function tab:Toggle(p)
+		return makeToggle(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""),ACC,p.Callback,p.Default)
+	end
+	function tab:Slider(p)
+		return makeSlider(pg,nextY(pg,SLIDER_H),SLIDER_H,tostring(p.Title or ""),ACC,tonumber(p.Default) or 50,p.Callback)
+	end
+	function tab:Input(p)
+		return makeInput(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""),tostring(p.Default or ""),p.Placeholder,p.Callback)
+	end
+	function tab:Dropdown(p)
+		return makeSelect(pg,nextY(pg,DROP_H),DROP_H,tostring(p.Title or ""),tostring(p.Desc or ""),p.Values or {"选项一"},tonumber(p.Default) or 1,ACC,p.Callback)
+	end
+	function tab:MultiDropdown(p)
+		return makeMulti(pg,nextY(pg,DROP_H),DROP_H,tostring(p.Title or ""),tostring(p.Desc or ""),p.Values or {"选项一"},p.Default,ACC,p.Callback)
+	end
+	function tab:Number(p)
+		return makeNumber(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""),ACC,tonumber(p.Default) or 0,tonumber(p.Min) or 0,tonumber(p.Max) or 100,p.Callback)
+	end
+	if idx == 1 then switchTab(idx) end
+	return tab
+end
+function windowObj:Notify(o) UIKIT.notify(o) end
+function windowObj:SetTitle(s) titleLbl.Text = tostring(s) end
+function windowObj:Destroy() gui:Destroy() end
+
+print("[XJW UI] "..C.Title.." 已加载")
+return windowObj
+end
+
+local API = {}
+API.CreateWindow = function(self,cfg) return BUILD(cfg) end
+return API
