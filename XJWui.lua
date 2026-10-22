@@ -1939,6 +1939,7 @@ local windowObj = {}
 function windowObj:Tab(o)
 	o = o or {}
 	local idx, pg = addTab(tostring(o.Title or "标签"))
+	head(pg, tostring(o.Title or "标签"))
 	local tab = {Page=pg, Index=idx}
 	function tab:Section(p)
 		local y = nextY(pg,32)
@@ -1975,7 +1976,6 @@ function windowObj:Notify(o) UIKIT.notify(o) end
 function windowObj:SetTitle(s) titleLbl.Text = tostring(s) end
 function windowObj:Destroy() gui:Destroy() end
 
-print("[XJW UI] "..C.Title.." 已加载")
 return windowObj
 end
 
