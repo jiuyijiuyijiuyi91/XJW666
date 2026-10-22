@@ -34,7 +34,7 @@ local TINT = {}
 local function tint(f) TINT[#TINT+1] = f end
 local function pick(obj,prop)
 	local o,p = obj,prop
-	tint(function(c) o[p] = c end)
+	tint(function(c) if o.Parent ~= nil then o[p] = c end end)
 end
 local function applyTheme(c)
 	ACC = c
@@ -667,33 +667,35 @@ end
 
 local function makeSlider(parent,y,h,label,accent,defaultPct,cb)
 	local row,rStroke,bar = cardShell(parent,y,h)
+	local pct = tonumber(defaultPct) or 0
+	if pct <= 1 then pct = pct*100 end
+	pct = math.clamp(pct,0,100)/100
 	new("TextLabel",{AnchorPoint=Vector2.new(0,.5),Position=UD.new(0,14,.5,0),
 		Size=UD.new(0.3,-14,0,14),BackgroundTransparency=1,
 		Text=label,TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=12,
 		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=row})
 	local valLbl = new("TextLabel",{AnchorPoint=Vector2.new(1,.5),Position=UD.new(1,-14,.5,0),
-		Size=UD.fromOffset(40,14),BackgroundTransparency=1,Text=(defaultPct or 50).."%",
+		Size=UD.fromOffset(40,14),BackgroundTransparency=1,Text=math.floor(pct*100+0.5).."%",
 		TextColor3=ACC,Font=Enum.Font.GothamMedium,TextSize=12,
 		TextXAlignment=Enum.TextXAlignment.Right,Parent=row})
 	local track = new("Frame",{AnchorPoint=Vector2.new(0,.5),Position=UD.new(0.3,0,.5,0),
 		Size=UD.new(0.7,-60,0,4),BackgroundColor3=C.Void,BorderSizePixel=0,Parent=row})
 	corner(track,2)
-	local fill = new("Frame",{Size=UD.new((defaultPct or 50)/100,0,1,0),
+	local fill = new("Frame",{Size=UD.new(pct,0,1,0),
 		BackgroundColor3=ACC,BorderSizePixel=0,Parent=track})
 	corner(fill,2)
 	local dot = new("Frame",{AnchorPoint=Vector2.new(.5,.5),
-		Position=UD.new((defaultPct or 50)/100,0,.5,0),
+		Position=UD.new(pct,6-pct*12,.5,0),
 		Size=UD.fromOffset(12,12),BackgroundColor3=C.Text,BorderSizePixel=0,Parent=track})
 	corner(dot,6); stroke(dot,C.Void,2,0)
 	local hit = new("TextButton",{Size=UD.fromScale(1,1),BackgroundTransparency=1,
 		Text="",AutoButtonColor=false,Parent=track})
 	local dragging = false
-	local pct = (defaultPct or 50)/100
 	local function update(input)
 		local p = math.clamp((input.Position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
 		pct = p
 		fill.Size = UD.new(p,0,1,0)
-		dot.Position = UD.new(p,0,.5,0)
+		dot.Position = UD.new(p,6-p*12,.5,0)
 		valLbl.Text = math.floor(p*100).."%"
 	end
 	hit.InputBegan:Connect(function(input)
@@ -718,7 +720,7 @@ local function makeSlider(parent,y,h,label,accent,defaultPct,cb)
 		if v > 1 or v < 0 then v = v/100 end
 		pct = math.clamp(v,0,1)
 		fill.Size = UD.new(pct,0,1,0)
-		dot.Position = UD.new(pct,0,.5,0)
+		dot.Position = UD.new(pct,6-pct*12,.5,0)
 		valLbl.Text = math.floor(pct*100+0.5).."%"
 		if cb then pcall(cb,math.floor(pct*100+0.5)) end
 	end
@@ -794,11 +796,9 @@ local function dropHead(parent,y,h,label,desc,accent,valW)
 	return row,valLbl,arrow
 end
 
-local function buildList(y,h,count,accent)
-	local rowTop = 32 + y
-	local rowBot = rowTop + h
+local function buildList(y,h,count,accent,rowRef)
 	local full = count * OP_H
-	local list = new("ScrollingFrame",{Position=UD.new(LIST_X,0,0,rowBot + 2),
+	local list = new("ScrollingFrame",{Position=UD.new(LIST_X,0,0,0),
 		Size=UD.new(LIST_W,0,0,full),BackgroundColor3=C.Panel2,BorderSizePixel=0,
 		Visible=false,ZIndex=30,CanvasSize=UD.new(0,0,0,full),
 		ScrollingDirection=Enum.ScrollingDirection.Y,ScrollBarThickness=2,
@@ -812,27 +812,17 @@ local function buildList(y,h,count,accent)
 		AutoButtonColor=false,Visible=false,ZIndex=29,Parent=main})
 	local function layout()
 		local mainH = main.Size.Y.Offset
-		local topLimit = 32 + 8
-		local botLimit = mainH - 24 - 8
-		local down = botLimit - (rowBot + 2)
-		local up = (rowTop - 2) - topLimit
-		local lh, ly, below
-		if full <= down then
-			lh, ly, below = full, rowBot + 2, true
-		elseif full <= up then
-			lh, ly, below = full, rowTop - 2 - full, false
-		elseif up > down then
-			lh = math.max(OP_H*3, up)
-			ly = rowTop - 2 - lh
-			below = false
-		else
-			lh = math.max(OP_H*3, down)
-			ly = rowBot + 2
-			below = true
-		end
+		local sc = 1
+		if mainH > 0 and main.AbsoluteSize.Y > 0 then sc = main.AbsoluteSize.Y / mainH end
+		if sc <= 0 then sc = 1 end
+		local top = (rowRef.AbsolutePosition.Y - main.AbsolutePosition.Y) / sc + h + 2
+		local room = (mainH - 8) - top
+		local lh = math.min(full, math.max(OP_H * 2, room))
+		local ly = math.min(top, mainH - 8 - lh)
+		if ly < 34 then ly = 34 end
 		list.Size = UD.new(LIST_W,0,0,lh)
 		list.CanvasSize = UD.new(0,0,0,full)
-		return ly, below
+		return ly, true
 	end
 	return list,catcher,layout
 end
@@ -880,7 +870,7 @@ end
 
 local function makeSelect(parent,y,h,label,desc,options,selIdx,accent,cb)
 	local row,valLbl,arrow = dropHead(parent,y,h,label,desc,accent,100)
-	local list,catcher,layout = buildList(y,h,#options,accent)
+	local list,catcher,layout = buildList(y,h,#options,accent,row)
 	local rows = {}
 	local sel = selIdx or 1
 	local function paint()
@@ -922,7 +912,7 @@ end
 
 local function makeMulti(parent,y,h,label,desc,options,preset,accent,cb)
 	local row,valLbl,arrow = dropHead(parent,y,h,label,desc,accent,100)
-	local list,catcher,layout = buildList(y,h,#options,accent)
+	local list,catcher,layout = buildList(y,h,#options,accent,row)
 	local rows = {}
 	local on = {}
 	for _,i in ipairs(preset or {}) do on[i] = true end
@@ -1911,33 +1901,36 @@ UIKIT.paragraph = function(parent,y,h,title,desc)
 		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=row})
 end
 
+local noteSlots = {}
 UIKIT.notify = function(o)
 	o = o or {}
-	local card = new("Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UD.new(.5,0,.38,18),
-		Size=UD.fromOffset(280,46),BackgroundColor3=C.Panel2,BorderSizePixel=0,
-		BackgroundTransparency=1,Parent=main,ZIndex=90})
-	corner(card,8)
-	local st = stroke(card,ACC,1,1)
-	local bar = new("Frame",{Size=UD.fromOffset(3,46),BackgroundColor3=ACC,BorderSizePixel=0,
-		BackgroundTransparency=1,Parent=card})
-	corner(bar,1.5)
-	pick(bar,"BackgroundColor3")
-	pick(st,"Color")
-	new("TextLabel",{Position=UD.fromOffset(14,7),Size=UD.new(1,-28,0,14),BackgroundTransparency=1,
-		Text=tostring(o.Title or "提示"),TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=13,
-		TextXAlignment=Enum.TextXAlignment.Left,Parent=card})
-	new("TextLabel",{Position=UD.fromOffset(14,24),Size=UD.new(1,-28,0,12),BackgroundTransparency=1,
-		Text=tostring(o.Content or ""),TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=11,
-		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=card})
-	task.spawn(function()
-		tw(card,0.2,{BackgroundTransparency=0.05,Position=UD.new(.5,0,.38,0)})
-		tw(st,0.2,{Transparency=0.15})
-		tw(bar,0.2,{BackgroundTransparency=0})
-		task.wait(tonumber(o.Duration) or 3)
-		tw(card,0.25,{BackgroundTransparency=1,Position=UD.new(.5,0,.38,-16)})
-		tw(st,0.25,{Transparency=1})
-		tw(bar,0.25,{BackgroundTransparency=1})
-		task.wait(0.3)
+	local dur = tonumber(o.Duration) or 1
+	if dur <= 0 then dur = 1 end
+	local slot = 1
+	while noteSlots[slot] do slot = slot + 1 end
+	noteSlots[slot] = true
+	local top = 12 + (slot - 1) * 34
+	local card = new("Frame",{AnchorPoint=Vector2.new(1,0),Position=UD.new(1,40,0,top),
+		Size=UD.fromOffset(150,30),BackgroundColor3=C.Panel2,BorderSizePixel=0,
+		BackgroundTransparency=0.05,Parent=gui,ZIndex=900,ClipsDescendants=true})
+	corner(card,6)
+	stroke(card,ACC,1,1)
+	new("TextLabel",{Position=UD.fromOffset(10,4),Size=UD.new(1,-20,0,12),BackgroundTransparency=1,
+		Text=tostring(o.Title or "提示"),TextColor3=C.Text,Font=Enum.Font.GothamBold,TextSize=11,
+		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=card,ZIndex=901})
+	new("TextLabel",{Position=UD.fromOffset(10,16),Size=UD.new(1,-20,0,10),BackgroundTransparency=1,
+		Text=tostring(o.Content or ""),TextColor3=C.Dim,Font=Enum.Font.GothamMedium,TextSize=10,
+		TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Parent=card,ZIndex=901})
+	new("Frame",{Position=UD.fromOffset(6,27),Size=UD.new(1,-12,0,3),
+		BackgroundColor3=C.Panel,BackgroundTransparency=0.55,BorderSizePixel=0,
+		Parent=card,ZIndex=901})
+	local bar = new("Frame",{Position=UD.fromOffset(6,27),Size=UD.new(1,-12,0,3),BackgroundColor3=ACC,
+		BackgroundTransparency=0,BorderSizePixel=0,Parent=card,ZIndex=902,ClipsDescendants=false})
+	corner(bar,2)
+	tw(card,0.15,{Position=UD.new(1,-12,0,top)})
+	local barTw = tw(bar,dur,{Size=UD.new(0,0,0,3)},Enum.EasingStyle.Linear)
+	barTw.Completed:Connect(function()
+		noteSlots[slot] = nil
 		card:Destroy()
 	end)
 end
@@ -1961,7 +1954,7 @@ function windowObj:Tab(o)
 		return makeToggle(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""),ACC,p.Callback,p.Default)
 	end
 	function tab:Slider(p)
-		return makeSlider(pg,nextY(pg,SLIDER_H),SLIDER_H,tostring(p.Title or ""),ACC,tonumber(p.Default) or 50,p.Callback)
+		return makeSlider(pg,nextY(pg,SLIDER_H),SLIDER_H,tostring(p.Title or ""),ACC,tonumber(p.Default) or 0,p.Callback)
 	end
 	function tab:Input(p)
 		return makeInput(pg,nextY(pg,ROW_H),ROW_H,tostring(p.Title or ""),tostring(p.Desc or ""),tostring(p.Default or ""),p.Placeholder,p.Callback)
@@ -1986,6 +1979,148 @@ print("[XJW UI] "..C.Title.." 已加载")
 return windowObj
 end
 
-local API = {}
-API.CreateWindow = function(self,cfg) return BUILD(cfg) end
-return API
+
+local XJW = {}
+XJW.CreateWindow = function(self,cfg) return BUILD(cfg) end
+
+
+--创建窗口
+local Window = XJW:CreateWindow({
+    Title = "脚本名字", --名字
+    SubTitle = "由i制作", --小标题
+    Version = "v72", --版本号
+    Width = 560, --宽度
+    Height = 334, --高度
+})
+
+--[[
+这是通知效果 可删除 默认1秒后自动消失
+Window:Notify({
+    Title = "加载成功",
+    Content = "",
+    Duration = 1
+})
+]]
+
+--[[
+这是关闭界面 可删除
+Window:Destroy()
+]]
+
+--创建窗口 Tab可后面可以加数字Tab123456这样 或者前面加字母 ABDTab这样
+local Tab = Window:Tab({
+    Title = "名字",
+})
+
+--标签的部分
+Tab:Section({Title = "名字"})
+
+--标签的段落
+Tab:Paragraph({
+    Title = "名字",
+    Desc = "名字",
+})
+
+--标签的复制
+Tab:Paragraph({
+    Title = "名字",
+    Desc = "名字",
+})
+Tab:Button({
+    Title = "复制",
+    Desc = "名字",
+    Callback = function()
+        if setclipboard then
+            setclipboard("这里放链接或群号")
+            --通知
+            Window:Notify({
+                Title = "已复制",
+                Content = "",
+                Duration = 1
+            })
+        else
+            Window:Notify({
+                Title = "错误",
+                Content = "",
+                Duration = 1
+            })
+        end
+    end
+})
+
+--开关
+Tab:Toggle({
+    Title = "名字",
+    Desc = "名字",
+    Default = false,
+    Callback = function()
+--你的功能代码
+    end
+})
+
+--滑块
+Tab:Slider({
+    Title = "名字",
+    Default = 0, --可以自定义数字(范围 0-100)
+    Callback = function()
+--你的功能代码
+    end
+})
+
+--按键
+Tab:Button({
+    Title = "名字",
+    Callback = function()
+--你的功能代码
+    end
+})
+
+--输入框
+Tab:Input({
+    Title = "名字",
+    Placeholder = "输入内容",
+    Callback = function()
+--你的代码
+    end
+})
+
+--下滑菜单
+Tab:Dropdown({
+    Title = "名字",
+    Values = {"名字1", "名字2", "名字3"},
+    Default = 1,
+    Callback = function()
+--你的代码
+    end
+})
+
+--下滑菜单 可多选
+Tab:MultiDropdown({
+    Title = "名字",
+    Values = {"名字1", "名字2", "名字3"},
+    Default = {1},
+    Callback = function()
+--你的代码
+    end
+})
+
+--数字框
+Tab:Number({
+    Title = "名字",
+    Desc = "名字",
+    Default = 10,
+    Min = 0, --最小
+    Max = 999, --最大
+    Callback = function()
+--你的代码
+    end
+})
+
+--通知按键
+Tab:Button({
+    Title = "一个通知",
+    Callback = function()
+ --你的代码
+        Window:Notify({Title = "只是一个通知", Content = "", Duration = 1}) --这个1是显示时长(秒) 可调节
+    end
+})
